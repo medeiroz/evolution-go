@@ -44,6 +44,7 @@ type SendService interface {
 	SendSticker(data *StickerStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
 	SendLocation(data *LocationStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
 	SendContact(data *ContactStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
+	SendEvent(data *EventStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
 	SendButton(data *ButtonStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
 	SendList(data *ListStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
 	SendCarousel(data *CarouselStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
@@ -166,6 +167,35 @@ type ContactStruct struct {
 	MentionAll   bool              `json:"mentionAll"`
 	FormatJid    *bool             `json:"formatJid,omitempty"`
 	Quoted       QuotedStruct      `json:"quoted"`
+}
+
+// EventLocationStruct is the optional physical location of an event.
+type EventLocationStruct struct {
+	Name      string  `json:"name"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Address   string  `json:"address"`
+}
+
+// EventStruct is the body for POST /send/event — a WhatsApp calendar event.
+// StartTime/EndTime are Unix timestamps in SECONDS (UTC epoch). Only Number,
+// Name and StartTime are required; every other field is optional.
+type EventStruct struct {
+	Number             string               `json:"number"`
+	Id                 string               `json:"id"`
+	Name               string               `json:"name"`
+	Description        string               `json:"description"`
+	StartTime          int64                `json:"startTime"`
+	EndTime            int64                `json:"endTime"`
+	JoinLink           string               `json:"joinLink"`
+	Location           *EventLocationStruct `json:"location,omitempty"`
+	ExtraGuestsAllowed bool                 `json:"extraGuestsAllowed"`
+	IsCanceled         bool                 `json:"isCanceled"`
+	Delay              int32                `json:"delay"`
+	MentionedJID       []string             `json:"mentionedJid"`
+	MentionAll         bool                 `json:"mentionAll"`
+	FormatJid          *bool                `json:"formatJid,omitempty"`
+	Quoted             QuotedStruct         `json:"quoted"`
 }
 
 // Button represents a single interactive button for /send/button.
@@ -1716,6 +1746,58 @@ func (s *sendService) SendContact(data *ContactStruct, instance *instance_model.
 	return messaged, nil
 }
 
+func (s *sendService) SendEvent(data *EventStruct, instance *instance_model.Instance) (*MessageSendStruct, error) {
+	_, err := s.ensureClientConnected(instance.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	event := &waE2E.EventMessage{
+		Name:      &data.Name,
+		StartTime: &data.StartTime,
+	}
+	if data.Description != "" {
+		event.Description = &data.Description
+	}
+	if data.EndTime != 0 {
+		event.EndTime = &data.EndTime
+	}
+	if data.JoinLink != "" {
+		event.JoinLink = &data.JoinLink
+	}
+	if data.ExtraGuestsAllowed {
+		event.ExtraGuestsAllowed = &data.ExtraGuestsAllowed
+	}
+	if data.IsCanceled {
+		event.IsCanceled = &data.IsCanceled
+	}
+	if data.Location != nil {
+		event.Location = &waE2E.LocationMessage{
+			DegreesLatitude:  &data.Location.Latitude,
+			DegreesLongitude: &data.Location.Longitude,
+			Name:             &data.Location.Name,
+			Address:          &data.Location.Address,
+		}
+	}
+
+	msg := &waE2E.Message{EventMessage: event}
+
+	message, err := s.SendMessage(instance, msg, "EventMessage", &SendDataStruct{
+		Id:           data.Id,
+		Number:       data.Number,
+		Quoted:       data.Quoted,
+		Delay:        data.Delay,
+		MentionAll:   data.MentionAll,
+		MentionedJID: data.MentionedJID,
+		FormatJid:    data.FormatJid,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return message, nil
+}
+
 func mapKeyType(keyType string) string {
 	switch keyType {
 	case "phone":
@@ -2465,6 +2547,12 @@ func (s *sendService) SendMessage(instance *instance_model.Instance, msg *waE2E.
 				Participant:   proto.String(data.Quoted.Participant),
 				QuotedMessage: &waE2E.Message{Conversation: proto.String("")},
 			}
+		case "EventMessage":
+			msg.EventMessage.ContextInfo = &waE2E.ContextInfo{
+				StanzaID:      proto.String(data.Quoted.MessageID),
+				Participant:   proto.String(data.Quoted.Participant),
+				QuotedMessage: &waE2E.Message{Conversation: proto.String("")},
+			}
 		case "ContactMessage":
 			msg.ContactMessage.ContextInfo = &waE2E.ContextInfo{
 				StanzaID:      proto.String(data.Quoted.MessageID),
@@ -2551,6 +2639,8 @@ func (s *sendService) SendMessage(instance *instance_model.Instance, msg *waE2E.
 			msg.StickerMessage.ContextInfo = &waE2E.ContextInfo{}
 		case "LocationMessage":
 			msg.LocationMessage.ContextInfo = &waE2E.ContextInfo{}
+		case "EventMessage":
+			msg.EventMessage.ContextInfo = &waE2E.ContextInfo{}
 		case "ContactMessage":
 			msg.ContactMessage.ContextInfo = &waE2E.ContextInfo{}
 		case "InteractiveMessage":
