@@ -216,6 +216,11 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 		c.Next()
 	})
 
+	// Root redirects to the Manager UI (avoids a bare 404 at "/").
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusFound, "/manager")
+	})
+
 	r.Use(core.GateMiddleware(runtimeCtx))
 
 	// License routes (always accessible, even without license)
