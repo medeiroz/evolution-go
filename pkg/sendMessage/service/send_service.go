@@ -177,16 +177,58 @@ type EventLocationStruct struct {
 	Address   string  `json:"address"`
 }
 
+// FlexTime is a Unix timestamp (seconds) that unmarshals from EITHER a JSON
+// number (Unix seconds) OR an ISO-8601 datetime string. A string WITH an
+// explicit offset ("2026-07-20T18:00:00-03:00" / "...Z") is honored as-is; a
+// naive string ("2026-07-20T18:00") is read in the server's local timezone
+// (America/Sao_Paulo per the Docker image), which is what a Brazilian caller
+// expects. ponytail: fixed layout list, extend if a new input format shows up.
+type FlexTime int64
+
+func (t *FlexTime) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	if b[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return nil
+		}
+		if parsed, err := time.Parse(time.RFC3339, s); err == nil {
+			*t = FlexTime(parsed.Unix())
+			return nil
+		}
+		for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02T15:04", "2006-01-02 15:04:05", "2006-01-02 15:04"} {
+			if parsed, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+				*t = FlexTime(parsed.Unix())
+				return nil
+			}
+		}
+		return fmt.Errorf("invalid datetime %q: use Unix seconds or ISO-8601 (e.g. 2026-07-20T18:00)", s)
+	}
+	var n int64
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	*t = FlexTime(n)
+	return nil
+}
+
 // EventStruct is the body for POST /send/event — a WhatsApp calendar event.
-// StartTime/EndTime are Unix timestamps in SECONDS (UTC epoch). Only Number,
-// Name and StartTime are required; every other field is optional.
+// StartTime/EndTime accept Unix seconds OR an ISO-8601 string (see FlexTime).
+// Only Number, Name and StartTime are required; every other field is optional.
 type EventStruct struct {
 	Number             string               `json:"number"`
 	Id                 string               `json:"id"`
 	Name               string               `json:"name"`
 	Description        string               `json:"description"`
-	StartTime          int64                `json:"startTime"`
-	EndTime            int64                `json:"endTime"`
+	StartTime          FlexTime             `json:"startTime"`
+	EndTime            FlexTime             `json:"endTime"`
 	JoinLink           string               `json:"joinLink"`
 	Location           *EventLocationStruct `json:"location,omitempty"`
 	ExtraGuestsAllowed bool                 `json:"extraGuestsAllowed"`
@@ -1752,15 +1794,17 @@ func (s *sendService) SendEvent(data *EventStruct, instance *instance_model.Inst
 		return nil, err
 	}
 
+	startTime := int64(data.StartTime)
 	event := &waE2E.EventMessage{
 		Name:      &data.Name,
-		StartTime: &data.StartTime,
+		StartTime: &startTime,
 	}
 	if data.Description != "" {
 		event.Description = &data.Description
 	}
 	if data.EndTime != 0 {
-		event.EndTime = &data.EndTime
+		endTime := int64(data.EndTime)
+		event.EndTime = &endTime
 	}
 	if data.JoinLink != "" {
 		event.JoinLink = &data.JoinLink

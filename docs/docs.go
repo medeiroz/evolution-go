@@ -3072,6 +3072,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/send/event": {
+            "post": {
+                "description": "Send a WhatsApp calendar event. startTime/endTime accept Unix seconds OR an ISO-8601 string. Only number, name and startTime are required.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Send Message"
+                ],
+                "summary": "Send a calendar event message",
+                "parameters": [
+                    {
+                        "description": "Message data",
+                        "name": "message",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_EvolutionAPI_evolution-go_pkg_sendMessage_service.EventStruct"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    },
+                    "400": {
+                        "description": "Error on validation",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    }
+                }
+            }
+        },
         "/send/location": {
             "post": {
                 "description": "Send a location message",
@@ -5021,6 +5067,78 @@ const docTemplate = `{
                     "description": "Header title (required).",
                     "type": "string",
                     "example": "Nossos planos"
+                }
+            }
+        },
+        "github_com_EvolutionAPI_evolution-go_pkg_sendMessage_service.EventLocationStruct": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "latitude": {
+                    "type": "number"
+                },
+                "longitude": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_EvolutionAPI_evolution-go_pkg_sendMessage_service.EventStruct": {
+            "type": "object",
+            "properties": {
+                "delay": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "endTime": {
+                    "type": "integer",
+                    "description": "Unix seconds or ISO-8601 string (e.g. 2026-07-20T18:00)"
+                },
+                "extraGuestsAllowed": {
+                    "type": "boolean"
+                },
+                "formatJid": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isCanceled": {
+                    "type": "boolean"
+                },
+                "joinLink": {
+                    "type": "string"
+                },
+                "location": {
+                    "$ref": "#/definitions/github_com_EvolutionAPI_evolution-go_pkg_sendMessage_service.EventLocationStruct"
+                },
+                "mentionAll": {
+                    "type": "boolean"
+                },
+                "mentionedJid": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "quoted": {
+                    "$ref": "#/definitions/github_com_EvolutionAPI_evolution-go_pkg_sendMessage_service.QuotedStruct"
+                },
+                "startTime": {
+                    "type": "integer",
+                    "description": "Unix seconds or ISO-8601 string (e.g. 2026-07-20T18:00)"
                 }
             }
         },
