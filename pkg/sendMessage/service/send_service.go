@@ -1824,7 +1824,18 @@ func (s *sendService) SendEvent(data *EventStruct, instance *instance_model.Inst
 		}
 	}
 
-	msg := &waE2E.Message{EventMessage: event}
+	// Events collect RSVP responses, so — exactly like polls — WhatsApp requires a
+	// 32-byte MessageSecret in MessageContextInfo. Without it the client accepts the
+	// message (200) but the event card never renders. Baileys always attaches one.
+	eventSecret := make([]byte, 32)
+	_, _ = crypto_rand.Read(eventSecret)
+
+	msg := &waE2E.Message{
+		EventMessage: event,
+		MessageContextInfo: &waE2E.MessageContextInfo{
+			MessageSecret: eventSecret,
+		},
+	}
 
 	message, err := s.SendMessage(instance, msg, "EventMessage", &SendDataStruct{
 		Id:           data.Id,
