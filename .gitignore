@@ -8,6 +8,7 @@ coverage.*
 .vscode/
 .DS_Store
 
-# compiled binaries
-evolution-go
-server
+# compiled binaries (root-anchored — a bare `evolution-go`/`server` also matches
+# the cmd/evolution-go/ and pkg/server/ source dirs and drops them from the repo)
+/evolution-go
+/server
