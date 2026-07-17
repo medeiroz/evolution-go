@@ -1856,23 +1856,27 @@ func (s *sendService) SendButton(data *ButtonStruct, instance *instance_model.In
 	var msgType string
 
 	if hasReply && !hasOtherTypes && !hasPix {
-		// Reply-only: native ButtonsMessage wrapped in DocumentWithCaptionMessage (Baileys PR #36).
-		var replyButtons []*waE2E.ButtonsMessage_Button
-		for _, v := range data.Buttons {
-			replyButtons = append(replyButtons, &waE2E.ButtonsMessage_Button{
-				ButtonID: proto.String(v.Id),
-				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-					DisplayText: proto.String(v.DisplayText),
-				},
-				Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-			})
+		// Reply-only: NativeFlow quick_reply InteractiveMessage. WhatsApp deprecated the
+		// legacy ButtonsMessage — it returns "server returned error 405" on personal/QR
+		// accounts (whatsmeow discussion #534) — so reply buttons ride the SAME NativeFlow
+		// mechanism as CTA/Carousel. The `buttons` slice already holds the quick_reply
+		// NativeFlowButtons; the <biz><interactive native_flow/> + <bot> nodes below are
+		// what make the phone render them.
+		bodyText := data.Description
+		if bodyText == "" {
+			bodyText = data.Title
 		}
 
-		buttonsMsg := &waE2E.ButtonsMessage{
-			ContentText: proto.String(data.Description),
-			FooterText:  proto.String(data.Footer),
-			HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
-			Buttons:     replyButtons,
+		interactive := &waE2E.InteractiveMessage{
+			Body:   &waE2E.InteractiveMessage_Body{Text: proto.String(bodyText)},
+			Footer: &waE2E.InteractiveMessage_Footer{Text: proto.String(data.Footer)},
+			InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
+				NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
+					Buttons:           buttons,
+					MessageParamsJSON: &messageParamsJSON,
+					MessageVersion:    proto.Int32(1),
+				},
+			},
 		}
 
 		// Optional media header (image or video URL).
@@ -1882,16 +1886,19 @@ func (s *sendService) SendButton(data *ButtonStruct, instance *instance_model.In
 				resp.Body.Close()
 				if readErr == nil {
 					if uploaded, upErr := client.Upload(context.Background(), fileData, whatsmeow.MediaImage); upErr == nil {
-						buttonsMsg.HeaderType = waE2E.ButtonsMessage_IMAGE.Enum()
-						buttonsMsg.Header = &waE2E.ButtonsMessage_ImageMessage{
-							ImageMessage: &waE2E.ImageMessage{
-								URL:           proto.String(uploaded.URL),
-								DirectPath:    proto.String(uploaded.DirectPath),
-								MediaKey:      uploaded.MediaKey,
-								Mimetype:      proto.String("image/jpeg"),
-								FileEncSHA256: uploaded.FileEncSHA256,
-								FileSHA256:    uploaded.FileSHA256,
-								FileLength:    proto.Uint64(uint64(len(fileData))),
+						interactive.Header = &waE2E.InteractiveMessage_Header{
+							HasMediaAttachment: proto.Bool(true),
+							Media: &waE2E.InteractiveMessage_Header_ImageMessage{
+								ImageMessage: &waE2E.ImageMessage{
+									URL:           proto.String(uploaded.URL),
+									DirectPath:    proto.String(uploaded.DirectPath),
+									MediaKey:      uploaded.MediaKey,
+									Mimetype:      proto.String("image/jpeg"),
+									FileEncSHA256: uploaded.FileEncSHA256,
+									FileSHA256:    uploaded.FileSHA256,
+									FileLength:    proto.Uint64(uint64(len(fileData))),
+									JPEGThumbnail: makeJPEGThumbnail(fileData, 72),
+								},
 							},
 						}
 					}
@@ -1903,16 +1910,18 @@ func (s *sendService) SendButton(data *ButtonStruct, instance *instance_model.In
 				resp.Body.Close()
 				if readErr == nil {
 					if uploaded, upErr := client.Upload(context.Background(), fileData, whatsmeow.MediaVideo); upErr == nil {
-						buttonsMsg.HeaderType = waE2E.ButtonsMessage_VIDEO.Enum()
-						buttonsMsg.Header = &waE2E.ButtonsMessage_VideoMessage{
-							VideoMessage: &waE2E.VideoMessage{
-								URL:           proto.String(uploaded.URL),
-								DirectPath:    proto.String(uploaded.DirectPath),
-								MediaKey:      uploaded.MediaKey,
-								Mimetype:      proto.String("video/mp4"),
-								FileEncSHA256: uploaded.FileEncSHA256,
-								FileSHA256:    uploaded.FileSHA256,
-								FileLength:    proto.Uint64(uint64(len(fileData))),
+						interactive.Header = &waE2E.InteractiveMessage_Header{
+							HasMediaAttachment: proto.Bool(true),
+							Media: &waE2E.InteractiveMessage_Header_VideoMessage{
+								VideoMessage: &waE2E.VideoMessage{
+									URL:           proto.String(uploaded.URL),
+									DirectPath:    proto.String(uploaded.DirectPath),
+									MediaKey:      uploaded.MediaKey,
+									Mimetype:      proto.String("video/mp4"),
+									FileEncSHA256: uploaded.FileEncSHA256,
+									FileSHA256:    uploaded.FileSHA256,
+									FileLength:    proto.Uint64(uint64(len(fileData))),
+								},
 							},
 						}
 					}
@@ -1923,14 +1932,14 @@ func (s *sendService) SendButton(data *ButtonStruct, instance *instance_model.In
 		msg = &waE2E.Message{
 			DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
 				Message: &waE2E.Message{
-					ButtonsMessage: buttonsMsg,
+					InteractiveMessage: interactive,
 				},
 			},
 			MessageContextInfo: &waE2E.MessageContextInfo{
 				MessageSecret: btnMsgSecret,
 			},
 		}
-		msgType = "ButtonsMessage"
+		msgType = "InteractiveMessage"
 	} else if hasPix {
 		// Pix: NativeFlowMessage wrapped in DocumentWithCaptionMessage.
 		paymentMsgParams := `{"native_flow_name":"order_details","version":1}`
