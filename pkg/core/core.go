@@ -21,6 +21,7 @@ package core
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -46,8 +47,18 @@ func GateMiddleware(_ *RuntimeContext) gin.HandlerFunc {
 	return func(c *gin.Context) { c.Next() }
 }
 
-// LicenseRoutes registers nothing: the /license activation endpoints are gone.
-func LicenseRoutes(_ *gin.Engine, _ *RuntimeContext) {}
+// LicenseRoutes serves a single local, always-"active" status endpoint.
+//
+// The Manager UI (manager/dist) probes GET /license/status on load and treats
+// status == "active" as licensed; anything else makes it show "Licença
+// necessária" and redirect to an external registrar. This fork has no license
+// server, so we answer "active" locally — no network, no activation flow, no
+// heartbeat. The real activation/register/callback endpoints stay removed.
+func LicenseRoutes(r *gin.Engine, _ *RuntimeContext) {
+	r.GET("/license/status", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "active"})
+	})
+}
 
 // StartHeartbeat is a no-op: no usage heartbeat ever leaves the instance.
 func StartHeartbeat(_ context.Context, _ *RuntimeContext, _ time.Time) {}
