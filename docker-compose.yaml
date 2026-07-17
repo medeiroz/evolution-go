@@ -3,18 +3,22 @@
 # and builds the image from ./Dockerfile).
 #
 # Coolify "magic" env vars do the wiring for you:
-#   SERVICE_FQDN_EVOLUTIONGO_8080  -> tells Coolify to route the proxy to this
-#                                     container's port 8080. Set the actual
-#                                     domain (evolution.medeiroz.com) in the
-#                                     Coolify UI: Service -> evolution-go ->
-#                                     Domains. Point that domain's DNS A record
-#                                     at the Coolify server first.
+#   SERVICE_FQDN_EVOLUTIONGO_8080  -> marks this service's port 8080 as the HTTP
+#                                     endpoint to proxy. Set the actual domain
+#                                     (evolution.medeiroz.com) in the Coolify UI:
+#                                     Service -> evolution-go -> Domains. Point
+#                                     that domain's DNS at the Coolify server.
 #   ${SERVICE_PASSWORD_64_APIKEY}  -> a persistent 64-char API key (no symbols).
 #   ${SERVICE_PASSWORD_PG}         -> a persistent Postgres password.
 # The two SERVICE_PASSWORD_* are generated once and stay editable in the UI.
 #
-# Local test run: `docker compose up` reads these from a local .env (gitignored)
-# — see DEPLOY-COOLIFY.md. Postgres is INTERNAL — no host port is published.
+# NOTE: `environment` uses the MAP form (key: value), not the list form
+# (- KEY=value). Coolify rewrites the compose and its YAML parser chokes on the
+# list form ("non-string key ... environment: 0"), so keep it as a map and quote
+# every value as a string.
+#
+# Local test run: `docker compose up` reads the secrets from a local .env
+# (gitignored) — see DEPLOY-COOLIFY.md. Postgres is INTERNAL — no host port.
 
 services:
   evolution-go:
@@ -25,27 +29,27 @@ services:
         VERSION: 0.7.2-local
     restart: unless-stopped
     environment:
-      # --- Coolify domain/proxy: expose port 8080 on an auto-generated domain ---
-      - SERVICE_FQDN_EVOLUTIONGO_8080
-      - SERVER_PORT=8080
-      # --- Security: master API key (send as the "apikey" header) ---
-      - GLOBAL_API_KEY=${SERVICE_PASSWORD_64_APIKEY}
-      # --- Database (Postgres over the internal network) ---
-      - POSTGRES_AUTH_DB=postgresql://postgres:${SERVICE_PASSWORD_PG}@postgres:5432/evogo_auth?sslmode=disable
-      - POSTGRES_USERS_DB=postgresql://postgres:${SERVICE_PASSWORD_PG}@postgres:5432/evogo_users?sslmode=disable
-      - DATABASE_SAVE_MESSAGES=false
-      # --- Runtime ---
-      - CLIENT_NAME=evolution
-      - OS_NAME=Evolution GO
-      - CONNECT_ON_STARTUP=false
-      - GIN_MODE=release
-      - WADEBUG=INFO
-      - LOGTYPE=console
-      - WEBHOOK_FILES=true
-      - MINIO_ENABLED=false
-      - AMQP_GLOBAL_ENABLED=false
-      # --- Passkey pairing: public URL of THIS API (used only if WhatsApp asks) ---
-      - PASSKEY_PUBLIC_URL=https://evolution.medeiroz.com
+      # Coolify: mark port 8080 as the HTTP endpoint to route (domain set in UI)
+      SERVICE_FQDN_EVOLUTIONGO_8080: ""
+      SERVER_PORT: "8080"
+      # Security: master API key (send as the "apikey" header)
+      GLOBAL_API_KEY: "${SERVICE_PASSWORD_64_APIKEY}"
+      # Database (Postgres over the internal network)
+      POSTGRES_AUTH_DB: "postgresql://postgres:${SERVICE_PASSWORD_PG}@postgres:5432/evogo_auth?sslmode=disable"
+      POSTGRES_USERS_DB: "postgresql://postgres:${SERVICE_PASSWORD_PG}@postgres:5432/evogo_users?sslmode=disable"
+      DATABASE_SAVE_MESSAGES: "false"
+      # Runtime
+      CLIENT_NAME: "evolution"
+      OS_NAME: "Evolution GO"
+      CONNECT_ON_STARTUP: "false"
+      GIN_MODE: "release"
+      WADEBUG: "INFO"
+      LOGTYPE: "console"
+      WEBHOOK_FILES: "true"
+      MINIO_ENABLED: "false"
+      AMQP_GLOBAL_ENABLED: "false"
+      # Passkey pairing: public URL of THIS API (used only if WhatsApp asks)
+      PASSKEY_PUBLIC_URL: "https://evolution.medeiroz.com"
     expose:
       - "8080"
     depends_on:
@@ -65,9 +69,9 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_PG}
-      - POSTGRES_DB=postgres
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "${SERVICE_PASSWORD_PG}"
+      POSTGRES_DB: "postgres"
     volumes:
       # PG18 moved PGDATA under /var/lib/postgresql/<major>/docker and declares
       # the volume at /var/lib/postgresql — mount the whole dir, NOT .../data
