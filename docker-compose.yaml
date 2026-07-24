@@ -48,12 +48,24 @@ services:
       # Runtime
       CLIENT_NAME: "evolution"
       OS_NAME: "Evolution GO"
-      CONNECT_ON_STARTUP: "false"
+      # true: instâncias reconectam sozinhas após redeploy (senão a captura para em
+      # silêncio até reconexão manual)
+      CONNECT_ON_STARTUP: "true"
       GIN_MODE: "release"
       WADEBUG: "INFO"
       LOGTYPE: "console"
       WEBHOOK_FILES: "true"
-      MINIO_ENABLED: "false"
+      # MinIO/S3 -> Cloudflare R2 (bucket evolution-go). Mídia vai pro R2 e o payload
+      # carrega `mediaUrl` no lugar de base64. Credenciais nas envs do Coolify (fora do
+      # git). ATENÇÃO: MINIO_ENABLED=true exige as 3 envs preenchidas ou o app panica
+      # no boot (panicIfEmpty) — rollout atômico.
+      MINIO_ENABLED: "true"
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY}"
+      MINIO_BUCKET: "evolution-go"
+      MINIO_USE_SSL: "true"
+      MINIO_REGION: "auto"
       # AMQP: firehose global de eventos de TODAS as instâncias -> RabbitMQ
       # (service `rabbitmq-evolution-go`, uuid m9jkqoqkkc8q8ijslc3npmf2). O app
       # alcança o broker pelo nome do container na rede predefinida `coolify`
