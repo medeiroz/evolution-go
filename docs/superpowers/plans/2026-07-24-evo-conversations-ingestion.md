@@ -270,17 +270,19 @@ pipeline:
         root.is_group      = this.data.Info.IsGroup.or(false)
         root.msg_type      = this.data.Info.Type
         root.msg_ts        = this.data.Info.Timestamp
-        root.body = this.data.Message.conversation
-                      .or(this.data.Message.extendedTextMessage.text)
-                      .or(this.data.Message.imageMessage.caption)
-                      .or(this.data.Message.videoMessage.caption)
-                      .or(this.data.Message.documentMessage.caption)
-                      .catch(null)
+        # NB: Bloblang exige o `.` no FIM da linha em chains multi-linha (não no início) —
+        # descoberto no lint (senão "failed to parse").
+        root.body = this.data.Message.conversation.
+                      or(this.data.Message.extendedTextMessage.text).
+                      or(this.data.Message.imageMessage.caption).
+                      or(this.data.Message.videoMessage.caption).
+                      or(this.data.Message.documentMessage.caption).
+                      catch(null)
         root.media_url  = this.data.Message.mediaUrl.catch(null)
-        root.media_path = this.data.Message.mediaUrl
-                            .re_replace_all("^https?://[^/]+/(evolution-go/)?", "")
-                            .re_replace_all("\\?.*$", "")
-                            .catch(null)
+        root.media_path = this.data.Message.mediaUrl.
+                            re_replace_all("^https?://[^/]+/(evolution-go/)?", "").
+                            re_replace_all("\\?.*$", "").
+                            catch(null)
         root.mimetype   = this.data.Message.mimetype.catch(null)
         # raw completo como texto JSON. base64 e mediaUrl são MUTUAMENTE EXCLUSIVOS no
         # evolution-go (whatsmeow.go:1558-1587), então só as ~20 msgs legadas trazem base64
