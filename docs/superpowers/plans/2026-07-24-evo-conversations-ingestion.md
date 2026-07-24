@@ -48,14 +48,12 @@ O token do R2 é inserido **por você direto no Coolify** (o agente nunca vê as
 
 Cloudflare → R2 → **Manage R2 API Tokens** → *Create API token* → **Object Read & Write**, escopo **só o bucket `evolution-go`**. Anote **Access Key ID** e **Secret Access Key** (o secret só aparece uma vez). O endpoint S3 é `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`.
 
-- [ ] **Step 2 [VOCÊ]: Inserir os 3 envs secretos no app `evolution-go` (Coolify UI)**
+- [ ] **Step 2: Inserir os 3 envs secretos no app `evolution-go`**
+  - `MINIO_ENDPOINT` = `8c3fa7b083b03fdbefe26da3c76d893e.r2.cloudflarestorage.com` — **[AGENTE] JÁ CRIADO** (uuid `y7738mcsiygb9toq1k364yld`).
+  - `MINIO_ACCESS_KEY` = Access Key ID do R2 — **[VOCÊ] criar na UI** (o CLI rejeita valor vazio).
+  - `MINIO_SECRET_KEY` = Secret Access Key do R2 — **[VOCÊ] criar na UI**.
 
-App evolution-go → **Environment Variables** → criar:
-- `MINIO_ENDPOINT` = `<ACCOUNT_ID>.r2.cloudflarestorage.com` (host, sem `https://`)
-- `MINIO_ACCESS_KEY` = Access Key ID do R2
-- `MINIO_SECRET_KEY` = Secret Access Key do R2
-
-Não fazer redeploy ainda (a Task 1 faz, junto com o compose). Avisar o agente quando os 3 estiverem criados.
+Não fazer redeploy ainda (a Task 1 faz, junto com o compose). Avisar o agente quando as 2 chaves estiverem criadas com valor real.
 
 ---
 
@@ -73,9 +71,9 @@ Liga `MINIO_ENABLED` (mídia → R2) e `CONNECT_ON_STARTUP` (reconecta após red
 - [ ] **Step 1 [AGENTE]: Confirmar que os 3 envs MinIO já existem no app** (criados por você na Task 0)
 
 ```bash
-coolify app env list v6avb69d6saxp5whzm5bgyyt --format json | python3 -c "import sys,json;need={'MINIO_ENDPOINT','MINIO_ACCESS_KEY','MINIO_SECRET_KEY'};ks={e['key'] for e in json.load(sys.stdin)};print('OK' if need<=ks else 'FALTANDO: '+str(need-ks))"
+coolify app env list v6avb69d6saxp5whzm5bgyyt --format json | python3 -c "import sys,json;need={'MINIO_ENDPOINT','MINIO_ACCESS_KEY','MINIO_SECRET_KEY'};ks={e['key'] for e in json.load(sys.stdin)};miss=need-ks;print('OK' if not miss else 'FALTANDO: '+str(miss));sys.exit(1 if miss else 0)"
 ```
-Expected: `OK`. Se `FALTANDO`, pedir pra você criar antes de seguir (senão o app panica no boot).
+Expected: `OK` (exit 0). **GATE DURO:** se sair não-zero (`FALTANDO`), **PARAR** — não commitar/pushar. Com qualquer `MINIO_*` obrigatório vazio, `loadMinioConfig` chama `panicIfEmpty` → `LogFatal` e o app **panica no boot**, derrubando **todas** as instâncias de uma vez (`config.go:399-430`).
 
 - [ ] **Step 2 [AGENTE]: Editar `docker-compose.yaml`** — trocar os toggles e adicionar as refs MinIO
 
@@ -280,16 +278,14 @@ pipeline:
                       .catch(null)
         root.media_url  = this.data.Message.mediaUrl.catch(null)
         root.media_path = this.data.Message.mediaUrl
-                            .re_replace_all("^https?://[^/]+/evolution-go/", "")
+                            .re_replace_all("^https?://[^/]+/(evolution-go/)?", "")
                             .re_replace_all("\\?.*$", "")
                             .catch(null)
         root.mimetype   = this.data.Message.mimetype.catch(null)
-        let has_url = this.data.Message.mediaUrl.catch("") != ""
-        root.data = if $has_url {
-          this.data.merge({ "Message": this.data.Message.without("base64") })
-        } else {
-          this.data
-        }
+        # raw completo como texto JSON. base64 e mediaUrl são MUTUAMENTE EXCLUSIVOS no
+        # evolution-go (whatsmeow.go:1558-1587), então só as ~20 msgs legadas trazem base64
+        # em `raw` — aceitável (spec §11.7). Sem strip condicional: era código morto e o
+        # `merge` re-uniria o base64 mesmo (deep-merge). Mais simples e correto assim.
         root.raw   = this.data.format_json()
         root.event = this.event
 
@@ -315,8 +311,8 @@ output:
     - amqp_0_9:
         urls: [ "${AMQP_URL}" ]
         exchange: ""
-        key: raw_messages_dlq
-        queue_declare: { enabled: true, durable: true }
+        key: raw_messages_dlq          # fila pré-declarada durable na Task 4 (o output amqp_0_9
+                                       # NÃO declara fila — só tem exchange_declare, não queue_declare)
 ```
 
 - [ ] **Step 2 [AGENTE]: Criar `Dockerfile`**
@@ -353,9 +349,10 @@ services:
 
 ```bash
 cd ~/code/evo-conversations
-docker run --rm -v "$PWD/benthos.yaml:/c.yaml" docker.redpanda.com/redpandadata/connect:latest lint /c.yaml
+docker run --rm -e AMQP_URL='amqp://x' -e ANALYTICS_PG_DSN='postgres://x' \
+  -v "$PWD/benthos.yaml:/c.yaml" docker.redpanda.com/redpandadata/connect:latest lint /c.yaml
 ```
-Expected: sem erros de lint. Corrigir qualquer campo/função inválidos antes de prosseguir.
+Expected: sem erros de lint (as envs dummy evitam falha de parse por var não setada). Corrigir qualquer campo/função inválidos antes de prosseguir.
 
 - [ ] **Step 6 [AGENTE]: git init + commit**
 
@@ -398,8 +395,24 @@ coolify app env create $NEW --key ANALYTICS_PG_DSN --value 'postgres://postgres:
 ```
 (`<MANAGED_PG_PASSWORD>` = valor da env homônima do app evolution-go.)
 
+- [ ] **Step 3b [AGENTE]: Pré-declarar a fila DLQ `raw_messages_dlq` (durable)**
+
+O output `amqp_0_9` **não** declara fila; sem isso, publicar na exchange default com routing key
+`raw_messages_dlq` cai numa fila inexistente e o RabbitMQ **descarta** a mensagem (unroutable).
+Criar a fila durable antes do primeiro deploy do Benthos:
+```bash
+U=YIGIxNF1JlwSnfJC; P=koYA1W5PyGiwsn0qen5voaDNpxOYX5wh; B=https://rabbitmq-evolution.medeiroz.com
+curl -s -u "$U:$P" -H "content-type: application/json" -X PUT \
+  "$B/api/queues/%2F/raw_messages_dlq" -d '{"durable":true,"auto_delete":false}' -w '\nHTTP %{http_code}\n'
+# conferir:
+curl -s -u "$U:$P" "$B/api/queues/%2F/raw_messages_dlq" | python3 -c "import sys,json;d=json.load(sys.stdin);print('DLQ ok:', d.get('name'), '| durable:', d.get('durable'))"
+```
+Expected: `HTTP 201` (ou 204 se já existir) e `DLQ ok: raw_messages_dlq | durable: True`.
+
 - [ ] **Step 4 [AGENTE]: Deploy + aguardar `finished`**
 
+Envs (Step 3) e a rede predefinida (Step 2) **precisam estar setados ANTES** deste deploy —
+senão o Benthos crash-loopa por `${AMQP_URL}`/`${ANALYTICS_PG_DSN}` não resolvidos.
 ```bash
 coolify deploy uuid <uuid-do-evo-conversations>
 # aguardar status "finished" em: coolify app deployments list <uuid> --format json | jq '.[0].status'

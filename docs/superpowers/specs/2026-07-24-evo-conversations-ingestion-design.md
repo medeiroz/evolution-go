@@ -231,20 +231,14 @@ pipeline:
         # media_path = CHAVE do objeto (sem scheme/host/bucket e sem query). Regex final
         # validado contra uma URL real do R2.
         root.media_path = this.data.Message.mediaUrl
-                            .re_replace_all("^https?://[^/]+/evolution-go/", "")
+                            .re_replace_all("^https?://[^/]+/(evolution-go/)?", "")
                             .re_replace_all("\\?.*$", "")
                             .catch(null)
         root.mimetype   = this.data.Message.mimetype.catch(null)
 
-        # strip CONDICIONAL de base64: só remove quando já há mediaUrl (senão preservaria
-        # a única referência de mídia — caso do send path via API).
-        let has_url = this.data.Message.mediaUrl.catch("") != ""
-        root.data = if $has_url {
-          this.data.merge({ "Message": this.data.Message.without("base64") })
-        } else {
-          this.data
-        }
-        # raw serializado como texto JSON (lib/pq rejeita map/objeto como parâmetro)
+        # raw serializado como texto JSON (lib/pq rejeita map/objeto como parâmetro).
+        # base64 e mediaUrl são MUTUAMENTE EXCLUSIVOS no evolution-go (whatsmeow.go:1558-1587),
+        # então não há strip a fazer: só as ~20 msgs legadas carregam base64 em `raw` (§11).
         root.raw   = this.data.format_json()
         root.event = this.event
 
@@ -267,11 +261,13 @@ output:
           ]
         suffix: "ON CONFLICT (instance_id, message_id) DO NOTHING"
         batching: { count: 50, period: 2s }
-    # DLQ: o que falhar no insert cai numa fila morta em vez de travar o pipeline
+    # DLQ: o que falhar no insert cai numa fila morta em vez de travar o pipeline.
+    # A fila `raw_messages_dlq` deve ser PRÉ-DECLARADA durable (o output amqp_0_9 não
+    # declara fila — só exchange_declare); senão o RabbitMQ descarta como unroutable.
     - amqp_0_9:
         urls: [ "${AMQP_URL}" ]
         exchange: ""
-        key: raw_messages_dlq          # fila morta (declarar durable)
+        key: raw_messages_dlq
 ```
 
 > `msg_type` tem **vocabulários diferentes** por fila: recebimento usa `Info.Type`
