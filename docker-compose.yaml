@@ -9,8 +9,14 @@
 #                                     Service -> evolution-go -> Domains. Point
 #                                     that domain's DNS at the Coolify server.
 #   ${SERVICE_PASSWORD_64_APIKEY}  -> a persistent 64-char API key (no symbols).
-#   ${SERVICE_PASSWORD_PG}         -> a persistent Postgres password.
-# The two SERVICE_PASSWORD_* are generated once and stay editable in the UI.
+#
+# DATABASE: Postgres is a SEPARATE Coolify-MANAGED database (standalone
+# resource `evolution-go-postgres`, uuid rmuon5lug96hpx0uerincy3h), NOT part of
+# this compose. That gives it the Coolify backup UI + a public port. This app
+# reaches it by container name over Coolify's predefined network, so the app
+# MUST have "Connect To Predefined Network" enabled (Configuration -> Advanced).
+#   ${MANAGED_PG_PASSWORD}  -> the managed Postgres password (set in Coolify env,
+#                              kept out of git).
 #
 # NOTE: `environment` uses the MAP form (key: value), not the list form
 # (- KEY=value). Coolify rewrites the compose and its YAML parser chokes on the
@@ -18,7 +24,7 @@
 # every value as a string.
 #
 # Local test run: `docker compose up` reads the secrets from a local .env
-# (gitignored) — see DEPLOY-COOLIFY.md. Postgres is INTERNAL — no host port.
+# (gitignored) — see DEPLOY-COOLIFY.md.
 
 services:
   evolution-go:
@@ -34,9 +40,10 @@ services:
       SERVER_PORT: "8080"
       # Security: master API key (send as the "apikey" header)
       GLOBAL_API_KEY: "${SERVICE_PASSWORD_64_APIKEY}"
-      # Database (Postgres over the internal network)
-      POSTGRES_AUTH_DB: "postgresql://postgres:${SERVICE_PASSWORD_PG}@postgres:5432/evogo_auth?sslmode=disable"
-      POSTGRES_USERS_DB: "postgresql://postgres:${SERVICE_PASSWORD_PG}@postgres:5432/evogo_users?sslmode=disable"
+      # Database (Coolify-managed Postgres, reached by container name over the
+      # predefined network — see header note)
+      POSTGRES_AUTH_DB: "postgresql://postgres:${MANAGED_PG_PASSWORD}@rmuon5lug96hpx0uerincy3h:5432/evogo_auth?sslmode=disable"
+      POSTGRES_USERS_DB: "postgresql://postgres:${MANAGED_PG_PASSWORD}@rmuon5lug96hpx0uerincy3h:5432/evogo_users?sslmode=disable"
       DATABASE_SAVE_MESSAGES: "false"
       # Runtime
       CLIENT_NAME: "evolution"
@@ -52,9 +59,6 @@ services:
       PASSKEY_PUBLIC_URL: "https://evolution.medeiroz.com"
     expose:
       - "8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       - evolution_data:/app/dbdata
       - evolution_logs:/app/logs
@@ -65,27 +69,6 @@ services:
       retries: 5
       start_period: 90s
 
-  postgres:
-    image: postgres:18-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "${SERVICE_PASSWORD_PG}"
-      POSTGRES_DB: "postgres"
-    volumes:
-      # PG18 moved PGDATA under /var/lib/postgresql/<major>/docker and declares
-      # the volume at /var/lib/postgresql — mount the whole dir, NOT .../data
-      # (mounting .../data here would silently fail to persist on PG18).
-      - postgres_data:/var/lib/postgresql
-      - ./deploy/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 15s
-
 volumes:
   evolution_data:
   evolution_logs:
-  postgres_data:
