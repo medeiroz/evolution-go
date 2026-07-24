@@ -54,7 +54,15 @@ services:
       LOGTYPE: "console"
       WEBHOOK_FILES: "true"
       MINIO_ENABLED: "false"
-      AMQP_GLOBAL_ENABLED: "false"
+      # AMQP: firehose global de eventos de TODAS as instâncias -> RabbitMQ
+      # (service `rabbitmq-evolution-go`, uuid m9jkqoqkkc8q8ijslc3npmf2). O app
+      # alcança o broker pelo nome do container na rede predefinida `coolify`
+      # (o service precisa de "Connect To Predefined Network" ligado). Cria filas
+      # `message` (recebidas) e `sendmessage` (enviadas), durable + quorum. A URL
+      # com credenciais fica na env AMQP_URL do Coolify (fora do git).
+      AMQP_GLOBAL_ENABLED: "true"
+      AMQP_GLOBAL_EVENTS: "MESSAGE,SEND_MESSAGE"
+      AMQP_URL: "${AMQP_URL}"
       # Passkey pairing: public URL of THIS API (used only if WhatsApp asks)
       PASSKEY_PUBLIC_URL: "https://evolution.medeiroz.com"
     expose:
