@@ -1557,7 +1557,17 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 				// Only process storage if download was successful
 				if err == nil && len(data) > 0 {
 					if mycli.config.MinioEnabled {
-						fileName := evt.Info.ID + extension
+						// Organiza a mídia no R2 por instância/contato:
+						// evolution-go-medias/<instância>/<contato>/<messageID><ext>
+						instanceSeg := sanitizeMediaSegment(mycli.Instance.Name)
+						if instanceSeg == "" {
+							instanceSeg = "sem-instancia"
+						}
+						recipientSeg := sanitizeMediaSegment(evt.Info.Chat.User)
+						if recipientSeg == "" {
+							recipientSeg = "sem-contato"
+						}
+						fileName := fmt.Sprintf("%s/%s/%s%s", instanceSeg, recipientSeg, evt.Info.ID, extension)
 						storageStart := time.Now()
 
 						mycli.loggerWrapper.GetLogger(mycli.userID).LogInfo("[%s] Uploading to S3/Minio - ID: %s, FileName: %s, Size: %d bytes", mycli.userID, evt.Info.ID, fileName, len(data))
@@ -2601,6 +2611,25 @@ func (w *whatsmeowService) SendToGlobalQueues(eventType string, payload []byte, 
 			}
 		}
 	}
+}
+
+// sanitizeMediaSegment normaliza um trecho (nome de instância, número do contato)
+// para uso seguro como "pasta" na chave do objeto no S3/R2: minúsculas, só [a-z0-9],
+// demais caracteres viram '-' (colapsados), sem '-' nas pontas.
+func sanitizeMediaSegment(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	lastDash := false
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			lastDash = false
+		} else if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 var (
