@@ -1563,7 +1563,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 						if instanceSeg == "" {
 							instanceSeg = "sem-instancia"
 						}
-						recipientSeg := sanitizeMediaSegment(evt.Info.Chat.User)
+						recipientSeg := sanitizeMediaSegment(contactSegment(evt.Info))
 						if recipientSeg == "" {
 							recipientSeg = "sem-contato"
 						}
@@ -2630,6 +2630,29 @@ func sanitizeMediaSegment(s string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-")
+}
+
+// contactSegment devolve o identificador do "contato" (o outro lado da conversa) para a
+// pasta da mídia, preferindo o TELEFONE quando disponível e caindo pro LID/id senão:
+//   - grupo (@g.us): id numérico do grupo
+//   - DM com JID de telefone (@s.whatsapp.net): o próprio número
+//   - DM com JID @lid: tenta o alt de telefone (SenderAlt na recebida, RecipientAlt na
+//     enviada); só usa o LID se não houver telefone.
+func contactSegment(info types.MessageInfo) string {
+	if info.IsGroup {
+		return info.Chat.User
+	}
+	if info.Chat.Server == "s.whatsapp.net" {
+		return info.Chat.User
+	}
+	alt := info.SenderAlt
+	if info.IsFromMe {
+		alt = info.RecipientAlt
+	}
+	if alt.Server == "s.whatsapp.net" && alt.User != "" {
+		return alt.User
+	}
+	return info.Chat.User
 }
 
 var (
