@@ -77,6 +77,9 @@ func (r *Routes) AssignRoutes(eng *gin.Engine) {
 		c.File("manager/dist/index.html")
 	})
 
+	// Página standalone de Grupos Monitorados (link na sidebar do manager)
+	eng.StaticFile("/monitored-groups", "./manager/dist/monitored-groups.html")
+
 	eng.GET("/server/ok", r.serverHandler.ServerOk)
 
 	routes := eng.Group("/instance")
