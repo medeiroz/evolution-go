@@ -55,6 +55,9 @@ services:
       WADEBUG: "${WADEBUG:-INFO}"
       LOGTYPE: "${LOGTYPE:-console}"
       WEBHOOK_FILES: "${WEBHOOK_FILES:-true}"
+      # Ignora eventos de @broadcast (Status/Stories e listas de transmissão) — ruído para
+      # captura de conversa. Default false (captura tudo); override na UI para true.
+      EVENT_IGNORE_STATUS: "${EVENT_IGNORE_STATUS:-false}"
       # MinIO/S3 -> Cloudflare R2 (bucket evolution-go). Mídia vai pro R2 e o payload
       # carrega `mediaUrl` no lugar de base64. Credenciais nas envs do Coolify (fora do
       # git). ATENÇÃO: MINIO_ENABLED=true exige as 3 envs preenchidas ou o app panica
