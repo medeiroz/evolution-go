@@ -37,35 +37,35 @@ services:
     environment:
       # Coolify: mark port 8080 as the HTTP endpoint to route (domain set in UI)
       SERVICE_FQDN_EVOLUTIONGO_8080: ""
-      SERVER_PORT: "8080"
+      SERVER_PORT: "${SERVER_PORT:-8080}"
       # Security: master API key (send as the "apikey" header)
       GLOBAL_API_KEY: "${SERVICE_PASSWORD_64_APIKEY}"
       # Database (Coolify-managed Postgres, reached by container name over the
       # predefined network — see header note)
       POSTGRES_AUTH_DB: "postgresql://postgres:${MANAGED_PG_PASSWORD}@rmuon5lug96hpx0uerincy3h:5432/evogo_auth?sslmode=disable"
       POSTGRES_USERS_DB: "postgresql://postgres:${MANAGED_PG_PASSWORD}@rmuon5lug96hpx0uerincy3h:5432/evogo_users?sslmode=disable"
-      DATABASE_SAVE_MESSAGES: "false"
+      DATABASE_SAVE_MESSAGES: "${DATABASE_SAVE_MESSAGES:-false}"
       # Runtime
-      CLIENT_NAME: "evolution"
-      OS_NAME: "Evolution GO"
+      CLIENT_NAME: "${CLIENT_NAME:-evolution}"
+      OS_NAME: "${OS_NAME:-Evolution GO}"
       # true: instâncias reconectam sozinhas após redeploy (senão a captura para em
       # silêncio até reconexão manual)
-      CONNECT_ON_STARTUP: "true"
-      GIN_MODE: "release"
-      WADEBUG: "INFO"
-      LOGTYPE: "console"
-      WEBHOOK_FILES: "true"
+      CONNECT_ON_STARTUP: "${CONNECT_ON_STARTUP:-true}"
+      GIN_MODE: "${GIN_MODE:-release}"
+      WADEBUG: "${WADEBUG:-INFO}"
+      LOGTYPE: "${LOGTYPE:-console}"
+      WEBHOOK_FILES: "${WEBHOOK_FILES:-true}"
       # MinIO/S3 -> Cloudflare R2 (bucket evolution-go). Mídia vai pro R2 e o payload
       # carrega `mediaUrl` no lugar de base64. Credenciais nas envs do Coolify (fora do
       # git). ATENÇÃO: MINIO_ENABLED=true exige as 3 envs preenchidas ou o app panica
       # no boot (panicIfEmpty) — rollout atômico.
-      MINIO_ENABLED: "true"
+      MINIO_ENABLED: "${MINIO_ENABLED:-true}"
       MINIO_ENDPOINT: "${MINIO_ENDPOINT}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY}"
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY}"
-      MINIO_BUCKET: "evolution-go"
-      MINIO_USE_SSL: "true"
-      MINIO_REGION: "auto"
+      MINIO_BUCKET: "${MINIO_BUCKET:-evolution-go}"
+      MINIO_USE_SSL: "${MINIO_USE_SSL:-true}"
+      MINIO_REGION: "${MINIO_REGION:-auto}"
       # Filtro de tipos de mídia a interceptar (baixar+subir pro R2). O default aqui lista
       # TODOS os tipos suportados; sobrescreva pela env MEDIA_INTERCEPT_TYPES no Coolify
       # com o subconjunto desejado (ex.: image,audio,sticker). Vazio = todos.
@@ -76,11 +76,11 @@ services:
       # (o service precisa de "Connect To Predefined Network" ligado). Cria filas
       # `message` (recebidas) e `sendmessage` (enviadas), durable + quorum. A URL
       # com credenciais fica na env AMQP_URL do Coolify (fora do git).
-      AMQP_GLOBAL_ENABLED: "true"
-      AMQP_GLOBAL_EVENTS: "MESSAGE,SEND_MESSAGE"
+      AMQP_GLOBAL_ENABLED: "${AMQP_GLOBAL_ENABLED:-true}"
+      AMQP_GLOBAL_EVENTS: "${AMQP_GLOBAL_EVENTS:-MESSAGE,SEND_MESSAGE}"
       AMQP_URL: "${AMQP_URL}"
       # Passkey pairing: public URL of THIS API (used only if WhatsApp asks)
-      PASSKEY_PUBLIC_URL: "https://evolution.medeiroz.com"
+      PASSKEY_PUBLIC_URL: "${PASSKEY_PUBLIC_URL:-https://evolution.medeiroz.com}"
     expose:
       - "8080"
     volumes:
