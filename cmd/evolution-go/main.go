@@ -50,6 +50,9 @@ import (
 	message_repository "github.com/evolution-foundation/evolution-go/pkg/message/repository"
 	message_service "github.com/evolution-foundation/evolution-go/pkg/message/service"
 	auth_middleware "github.com/evolution-foundation/evolution-go/pkg/middleware"
+	monitored_group_handler "github.com/evolution-foundation/evolution-go/pkg/monitoredgroup/handler"
+	monitored_group_model "github.com/evolution-foundation/evolution-go/pkg/monitoredgroup/model"
+	monitored_group_service "github.com/evolution-foundation/evolution-go/pkg/monitoredgroup/service"
 	newsletter_handler "github.com/evolution-foundation/evolution-go/pkg/newsletter/handler"
 	newsletter_service "github.com/evolution-foundation/evolution-go/pkg/newsletter/service"
 	passkey_handler "github.com/evolution-foundation/evolution-go/pkg/passkey/handler"
@@ -161,6 +164,7 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 	instanceRepository := instance_repository.NewInstanceRepository(db)
 	messageRepository := message_repository.NewMessageRepository(db)
 	labelRepository := label_repository.NewLabelRepository(db)
+	monitoredGroupService := monitored_group_service.NewMonitoredGroupService(db, loggerWrapper)
 
 	whatsmeowService := whatsmeow_service.NewWhatsmeowService(
 		instanceRepository,
@@ -177,6 +181,7 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 		exPath,
 		mediaStorage,
 		natsProducer,
+		monitoredGroupService,
 		loggerWrapper,
 	)
 	instanceService := instance_service.NewInstanceService(
@@ -199,6 +204,7 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 
 	// NOVO: PollHandler usando PollService já inicializado no whatsmeowService (evita dupla inicialização)
 	pollHandler := poll_handler.NewPollHandler(whatsmeowService.GetPollService(), loggerWrapper)
+	monitoredGroupHandler := monitored_group_handler.NewMonitoredGroupHandler(monitoredGroupService, loggerWrapper)
 
 	r := gin.Default()
 
@@ -243,6 +249,7 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 		label_handler.NewLabelHandler(labelService),
 		newsletter_handler.NewNewsletterHandler(newsletterService),
 		pollHandler,
+		monitoredGroupHandler,
 		server_handler.NewServerHandler(),
 	).AssignRoutes(r)
 
@@ -267,7 +274,7 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 }
 
 func migrate(db *gorm.DB) {
-	err := db.AutoMigrate(&instance_model.Instance{}, &message_model.Message{}, &label_model.Label{})
+	err := db.AutoMigrate(&instance_model.Instance{}, &message_model.Message{}, &label_model.Label{}, &monitored_group_model.MonitoredGroup{})
 
 	if err != nil {
 		log.Fatal(err)

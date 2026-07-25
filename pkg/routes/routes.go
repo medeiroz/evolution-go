@@ -16,6 +16,7 @@ import (
 	label_handler "github.com/evolution-foundation/evolution-go/pkg/label/handler"
 	message_handler "github.com/evolution-foundation/evolution-go/pkg/message/handler"
 	auth_middleware "github.com/evolution-foundation/evolution-go/pkg/middleware"
+	monitored_group_handler "github.com/evolution-foundation/evolution-go/pkg/monitoredgroup/handler"
 	newsletter_handler "github.com/evolution-foundation/evolution-go/pkg/newsletter/handler"
 	poll_handler "github.com/evolution-foundation/evolution-go/pkg/poll/handler"
 	send_handler "github.com/evolution-foundation/evolution-go/pkg/sendMessage/handler"
@@ -37,6 +38,7 @@ type Routes struct {
 	labelHandler            label_handler.LabelHandler
 	newsletterHandler       newsletter_handler.NewsletterHandler
 	pollHandler             *poll_handler.PollHandler
+	monitoredGroupHandler   *monitored_group_handler.MonitoredGroupHandler
 	serverHandler           server_handler.ServerHandler
 }
 
@@ -89,6 +91,9 @@ func (r *Routes) AssignRoutes(eng *gin.Engine) {
 			routes.DELETE("/proxy/:instanceId", r.instanceHandler.DeleteProxy)
 			routes.POST("/forcereconnect/:instanceId", r.instanceHandler.ForceReconnect)
 			routes.GET("/logs/:instanceId", r.instanceHandler.GetLogs)
+			routes.GET("/monitored-groups/:instanceId", r.monitoredGroupHandler.List)
+			routes.POST("/monitored-groups/:instanceId", r.monitoredGroupHandler.Add)
+			routes.DELETE("/monitored-groups/:instanceId", r.monitoredGroupHandler.Remove)
 		}
 	}
 
@@ -261,6 +266,7 @@ func NewRouter(
 	labelHandler label_handler.LabelHandler,
 	newsletterHandler newsletter_handler.NewsletterHandler,
 	pollHandler *poll_handler.PollHandler,
+	monitoredGroupHandler *monitored_group_handler.MonitoredGroupHandler,
 	serverHandler server_handler.ServerHandler,
 ) *Routes {
 	return &Routes{
@@ -277,6 +283,7 @@ func NewRouter(
 		labelHandler:            labelHandler,
 		newsletterHandler:       newsletterHandler,
 		pollHandler:             pollHandler,
+		monitoredGroupHandler:   monitoredGroupHandler,
 		serverHandler:           serverHandler,
 	}
 }

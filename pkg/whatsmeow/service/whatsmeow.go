@@ -44,6 +44,7 @@ import (
 	logger_wrapper "github.com/evolution-foundation/evolution-go/pkg/logger"
 	message_model "github.com/evolution-foundation/evolution-go/pkg/message/model"
 	message_repository "github.com/evolution-foundation/evolution-go/pkg/message/repository"
+	monitored_group_service "github.com/evolution-foundation/evolution-go/pkg/monitoredgroup/service"
 	"github.com/evolution-foundation/evolution-go/pkg/passkey/ceremony"
 	poll_service "github.com/evolution-foundation/evolution-go/pkg/poll/service"
 	storage_interfaces "github.com/evolution-foundation/evolution-go/pkg/storage/interfaces"
@@ -77,59 +78,61 @@ type clientVersion struct {
 }
 
 type whatsmeowService struct {
-	instanceRepository instance_repository.InstanceRepository
-	authDB             *sql.DB
-	messageRepository  message_repository.MessageRepository
-	labelRepository    label_repository.LabelRepository
-	pollService        poll_service.PollService // NOVO: Serviço de enquetes
-	config             *config.Config
-	killChannel        map[string](chan bool)
-	userInfoCache      *cache.Cache
-	clientPointer      map[string]*whatsmeow.Client
-	myClientPointer    map[string]*MyClient
-	rabbitmqProducer   producer_interfaces.Producer
-	webhookProducer    producer_interfaces.Producer
-	websocketProducer  producer_interfaces.Producer
-	sqliteDB           *sql.DB
-	exPath             string
-	mediaStorage       storage_interfaces.MediaStorage
-	processedMessages  *cache.Cache
-	natsProducer       producer_interfaces.Producer
-	loggerWrapper      *logger_wrapper.LoggerManager
-	passkeyCeremony    *ceremony.Store
+	instanceRepository    instance_repository.InstanceRepository
+	authDB                *sql.DB
+	messageRepository     message_repository.MessageRepository
+	labelRepository       label_repository.LabelRepository
+	pollService           poll_service.PollService // NOVO: Serviço de enquetes
+	monitoredGroupService monitored_group_service.MonitoredGroupService
+	config                *config.Config
+	killChannel           map[string](chan bool)
+	userInfoCache         *cache.Cache
+	clientPointer         map[string]*whatsmeow.Client
+	myClientPointer       map[string]*MyClient
+	rabbitmqProducer      producer_interfaces.Producer
+	webhookProducer       producer_interfaces.Producer
+	websocketProducer     producer_interfaces.Producer
+	sqliteDB              *sql.DB
+	exPath                string
+	mediaStorage          storage_interfaces.MediaStorage
+	processedMessages     *cache.Cache
+	natsProducer          producer_interfaces.Producer
+	loggerWrapper         *logger_wrapper.LoggerManager
+	passkeyCeremony       *ceremony.Store
 }
 
 type MyClient struct {
-	service            WhatsmeowService
-	WAClient           *whatsmeow.Client
-	eventHandlerID     uint32
-	userID             string
-	Instance           *instance_model.Instance
-	token              string
-	subscriptions      []string
-	webhookUrl         string
-	rabbitmqEnable     string
-	natsEnable         string
-	websocketEnable    string
-	instanceRepository instance_repository.InstanceRepository
-	messageRepository  message_repository.MessageRepository
-	labelRepository    label_repository.LabelRepository
-	pollService        poll_service.PollService // NOVO: Serviço de enquetes
-	clientPointer      map[string]*whatsmeow.Client
-	myClientPointer    map[string]*MyClient
-	killChannel        map[string](chan bool)
-	userInfoCache      *cache.Cache
-	config             *config.Config
-	historySyncID      int32
-	rabbitmqProducer   producer_interfaces.Producer
-	webhookProducer    producer_interfaces.Producer
-	websocketProducer  producer_interfaces.Producer
-	mediaStorage       storage_interfaces.MediaStorage
-	processedMessages  *cache.Cache
-	natsProducer       producer_interfaces.Producer
-	loggerWrapper      *logger_wrapper.LoggerManager
-	qrcodeCount        int
-	passkeyCeremony    *ceremony.Store
+	service               WhatsmeowService
+	WAClient              *whatsmeow.Client
+	eventHandlerID        uint32
+	userID                string
+	Instance              *instance_model.Instance
+	token                 string
+	subscriptions         []string
+	webhookUrl            string
+	rabbitmqEnable        string
+	natsEnable            string
+	websocketEnable       string
+	instanceRepository    instance_repository.InstanceRepository
+	messageRepository     message_repository.MessageRepository
+	labelRepository       label_repository.LabelRepository
+	pollService           poll_service.PollService // NOVO: Serviço de enquetes
+	monitoredGroupService monitored_group_service.MonitoredGroupService
+	clientPointer         map[string]*whatsmeow.Client
+	myClientPointer       map[string]*MyClient
+	killChannel           map[string](chan bool)
+	userInfoCache         *cache.Cache
+	config                *config.Config
+	historySyncID         int32
+	rabbitmqProducer      producer_interfaces.Producer
+	webhookProducer       producer_interfaces.Producer
+	websocketProducer     producer_interfaces.Producer
+	mediaStorage          storage_interfaces.MediaStorage
+	processedMessages     *cache.Cache
+	natsProducer          producer_interfaces.Producer
+	loggerWrapper         *logger_wrapper.LoggerManager
+	qrcodeCount           int
+	passkeyCeremony       *ceremony.Store
 }
 
 func (mycli *MyClient) persistMessageAsync(message message_model.Message) {
@@ -465,36 +468,37 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 	client.AutoTrustIdentity = true
 
 	mycli := &MyClient{
-		service:            &w,
-		Instance:           cd.Instance,
-		WAClient:           client,
-		eventHandlerID:     1,
-		userID:             cd.Instance.Id,
-		token:              cd.Instance.Token,
-		subscriptions:      cd.Subscriptions,
-		webhookUrl:         cd.Instance.Webhook,
-		rabbitmqEnable:     cd.Instance.RabbitmqEnable,
-		natsEnable:         cd.Instance.NatsEnable,
-		websocketEnable:    cd.Instance.WebSocketEnable,
-		instanceRepository: w.instanceRepository,
-		messageRepository:  w.messageRepository,
-		labelRepository:    w.labelRepository,
-		pollService:        w.pollService, // NOVO: Serviço de enquetes
-		userInfoCache:      w.userInfoCache,
-		clientPointer:      w.clientPointer,
-		myClientPointer:    w.myClientPointer,
-		killChannel:        w.killChannel,
-		config:             w.config,
-		historySyncID:      0,
-		rabbitmqProducer:   w.rabbitmqProducer,
-		webhookProducer:    w.webhookProducer,
-		websocketProducer:  w.websocketProducer,
-		mediaStorage:       w.mediaStorage,
-		processedMessages:  w.processedMessages,
-		natsProducer:       w.natsProducer,
-		loggerWrapper:      w.loggerWrapper,
-		qrcodeCount:        0,
-		passkeyCeremony:    w.passkeyCeremony,
+		service:               &w,
+		Instance:              cd.Instance,
+		WAClient:              client,
+		eventHandlerID:        1,
+		userID:                cd.Instance.Id,
+		token:                 cd.Instance.Token,
+		subscriptions:         cd.Subscriptions,
+		webhookUrl:            cd.Instance.Webhook,
+		rabbitmqEnable:        cd.Instance.RabbitmqEnable,
+		natsEnable:            cd.Instance.NatsEnable,
+		websocketEnable:       cd.Instance.WebSocketEnable,
+		instanceRepository:    w.instanceRepository,
+		messageRepository:     w.messageRepository,
+		labelRepository:       w.labelRepository,
+		pollService:           w.pollService, // NOVO: Serviço de enquetes
+		monitoredGroupService: w.monitoredGroupService,
+		userInfoCache:         w.userInfoCache,
+		clientPointer:         w.clientPointer,
+		myClientPointer:       w.myClientPointer,
+		killChannel:           w.killChannel,
+		config:                w.config,
+		historySyncID:         0,
+		rabbitmqProducer:      w.rabbitmqProducer,
+		webhookProducer:       w.webhookProducer,
+		websocketProducer:     w.websocketProducer,
+		mediaStorage:          w.mediaStorage,
+		processedMessages:     w.processedMessages,
+		natsProducer:          w.natsProducer,
+		loggerWrapper:         w.loggerWrapper,
+		qrcodeCount:           0,
+		passkeyCeremony:       w.passkeyCeremony,
 	}
 
 	mycli.eventHandlerID = mycli.WAClient.AddEventHandler(mycli.myEventHandler)
@@ -1179,6 +1183,13 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 
 		// Verifica advanced settings para ignorar status/broadcast
 		if (mycli.config.EventIgnoreStatus || mycli.Instance.IgnoreStatus) && (strings.Contains(evt.Info.Chat.String(), "@broadcast") || strings.Contains(evt.Info.ID, "@broadcast")) {
+			return
+		}
+
+		// Filtro de grupos monitorados (allowlist por instância, no banco). Só afeta grupos;
+		// lista vazia = monitora todos. Grupo fora da lista é ignorado (não vai pro RabbitMQ).
+		if strings.Contains(evt.Info.Chat.String(), "@g.us") && mycli.monitoredGroupService != nil &&
+			!mycli.monitoredGroupService.IsMonitored(mycli.Instance.Id, evt.Info.Chat.String()) {
 			return
 		}
 
@@ -2880,32 +2891,34 @@ func NewWhatsmeowService(
 	exPath string,
 	mediaStorage storage_interfaces.MediaStorage,
 	natsProducer producer_interfaces.Producer,
+	monitoredGroupService monitored_group_service.MonitoredGroupService,
 	loggerWrapper *logger_wrapper.LoggerManager,
 ) WhatsmeowService {
 	// Inicializar PollService de forma segura
 	pollSvc := poll_service.NewPollService(authDB, loggerWrapper)
 
 	return &whatsmeowService{
-		instanceRepository: instanceRepository,
-		authDB:             authDB,
-		messageRepository:  messageRepository,
-		labelRepository:    labelRepository,
-		pollService:        pollSvc, // NOVO: Serviço de enquetes
-		config:             config,
-		killChannel:        killChannel,
-		userInfoCache:      cache.New(5*time.Minute, 10*time.Minute),
-		clientPointer:      clientPointer,
-		myClientPointer:    make(map[string]*MyClient),
-		rabbitmqProducer:   rabbitmqProducer,
-		webhookProducer:    webhookProducer,
-		websocketProducer:  websocketProducer,
-		sqliteDB:           sqliteDB,
-		exPath:             exPath,
-		mediaStorage:       mediaStorage,
-		processedMessages:  cache.New(30*time.Minute, 1*time.Hour),
-		natsProducer:       natsProducer,
-		loggerWrapper:      loggerWrapper,
-		passkeyCeremony:    ceremony.NewStore(),
+		instanceRepository:    instanceRepository,
+		authDB:                authDB,
+		messageRepository:     messageRepository,
+		labelRepository:       labelRepository,
+		pollService:           pollSvc, // NOVO: Serviço de enquetes
+		monitoredGroupService: monitoredGroupService,
+		config:                config,
+		killChannel:           killChannel,
+		userInfoCache:         cache.New(5*time.Minute, 10*time.Minute),
+		clientPointer:         clientPointer,
+		myClientPointer:       make(map[string]*MyClient),
+		rabbitmqProducer:      rabbitmqProducer,
+		webhookProducer:       webhookProducer,
+		websocketProducer:     websocketProducer,
+		sqliteDB:              sqliteDB,
+		exPath:                exPath,
+		mediaStorage:          mediaStorage,
+		processedMessages:     cache.New(30*time.Minute, 1*time.Hour),
+		natsProducer:          natsProducer,
+		loggerWrapper:         loggerWrapper,
+		passkeyCeremony:       ceremony.NewStore(),
 	}
 }
 
