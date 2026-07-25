@@ -66,9 +66,10 @@ services:
       MINIO_BUCKET: "evolution-go"
       MINIO_USE_SSL: "true"
       MINIO_REGION: "auto"
-      # Filtro de tipos de mídia a interceptar (baixar+subir pro R2). Allowlist
-      # separada por vírgula: image,audio,video,document,sticker. Vazio = todos.
-      MEDIA_INTERCEPT_TYPES: "image,audio,sticker"
+      # Filtro de tipos de mídia a interceptar (baixar+subir pro R2). O default aqui lista
+      # TODOS os tipos suportados; sobrescreva pela env MEDIA_INTERCEPT_TYPES no Coolify
+      # com o subconjunto desejado (ex.: image,audio,sticker). Vazio = todos.
+      MEDIA_INTERCEPT_TYPES: "${MEDIA_INTERCEPT_TYPES:-image,audio,video,document,sticker}"
       # AMQP: firehose global de eventos de TODAS as instâncias -> RabbitMQ
       # (service `rabbitmq-evolution-go`, uuid m9jkqoqkkc8q8ijslc3npmf2). O app
       # alcança o broker pelo nome do container na rede predefinida `coolify`
