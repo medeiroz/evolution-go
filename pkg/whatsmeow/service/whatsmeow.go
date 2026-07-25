@@ -1400,6 +1400,29 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 				isMedia = true
 			}
 
+			// Filtro de tipos de mídia (env MEDIA_INTERCEPT_TYPES). Categoria na lista (ou
+			// lista vazia) = intercepta; fora da lista = pula download+store e a mensagem
+			// segue normalmente, só sem o arquivo.
+			if isMedia {
+				mediaCategory := ""
+				switch {
+				case img != nil || associatedImg != nil:
+					mediaCategory = "image"
+				case audio != nil || associatedAudio != nil:
+					mediaCategory = "audio"
+				case video != nil || associatedVideo != nil:
+					mediaCategory = "video"
+				case document != nil || associatedDocument != nil:
+					mediaCategory = "document"
+				case sticker != nil || associatedSticker != nil:
+					mediaCategory = "sticker"
+				}
+				if !mycli.config.ShouldInterceptMedia(mediaCategory) {
+					mycli.loggerWrapper.GetLogger(mycli.userID).LogInfo("[%s] Mídia '%s' ignorada pelo filtro MEDIA_INTERCEPT_TYPES - ID: %s", mycli.userID, mediaCategory, evt.Info.ID)
+					isMedia = false
+				}
+			}
+
 			if isMedia {
 				mycli.loggerWrapper.GetLogger(mycli.userID).LogInfo("[%s] Processing media message - ID: %s", mycli.userID, evt.Info.ID)
 

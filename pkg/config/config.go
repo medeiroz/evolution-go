@@ -44,6 +44,7 @@ type Config struct {
 	MinioUseSSL          bool
 	MinioEnabled         bool
 	MinioRegion          string
+	MediaInterceptTypes  []string
 	WhatsappVersionMajor int
 	WhatsappVersionMinor int
 	WhatsappVersionPatch int
@@ -309,6 +310,15 @@ func Load() *Config {
 		amqpSpecificEvents = []string{}
 	}
 
+	// Allowlist de tipos de mídia a interceptar (image,audio,video,document,sticker).
+	// Vazia = interceptar todos (retrocompatível).
+	mediaInterceptTypes := []string{}
+	for _, t := range strings.Split(os.Getenv(config_env.MEDIA_INTERCEPT_TYPES), ",") {
+		if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
+			mediaInterceptTypes = append(mediaInterceptTypes, t)
+		}
+	}
+
 	natsUrl := os.Getenv(config_env.NATS_URL)
 	natsGlobalEnabled := os.Getenv(config_env.NATS_GLOBAL_ENABLED)
 	natsGlobalEvents := strings.Split(os.Getenv(config_env.NATS_GLOBAL_EVENTS), ",")
@@ -380,6 +390,7 @@ func Load() *Config {
 		NatsUrl:              natsUrl,
 		NatsGlobalEnabled:    natsGlobalEnabled == "true",
 		NatsGlobalEvents:     natsGlobalEvents,
+		MediaInterceptTypes:  mediaInterceptTypes,
 		LogMaxSize:           logMaxSize,
 		LogMaxBackups:        logMaxBackups,
 		LogMaxAge:            logMaxAge,
@@ -394,6 +405,20 @@ func Load() *Config {
 	}
 
 	return config
+}
+
+// ShouldInterceptMedia diz se uma categoria de mídia (image/audio/video/document/sticker)
+// deve ser baixada e armazenada. Lista vazia = intercepta todas (retrocompatível).
+func (c *Config) ShouldInterceptMedia(category string) bool {
+	if len(c.MediaInterceptTypes) == 0 {
+		return true
+	}
+	for _, t := range c.MediaInterceptTypes {
+		if t == category {
+			return true
+		}
+	}
+	return false
 }
 
 func loadMinioConfig(config *Config) {
